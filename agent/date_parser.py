@@ -25,9 +25,9 @@ def parse_sales_date(text: str) -> str:
         (r'tomorrow\s*(morning|afternoon|evening)', lambda m: _parse_tomorrow_period(m, now)),
         
         # Next week
-        (r'next\s+week\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(?:at\s*)?(\d{1,2}):?(\d{2})?\s*(am|pm)?', 
+        (r'next\s+week\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(?:at\s*)?(\d{1,2}):?(\d{2})?\s*(a\.?m\.?|p\.?m\.?)?', 
          lambda m: _parse_next_week_day(m, now)),
-        (r'next\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(?:at\s*)?(\d{1,2}):?(\d{2})?\s*(am|pm)?', 
+        (r'next\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(?:at\s*)?(\d{1,2}):?(\d{2})?\s*(a\.?m\.?|p\.?m\.?)?', 
          lambda m: _parse_next_day(m, now)),
         
         # This week
@@ -77,9 +77,10 @@ def _parse_tomorrow(match, now):
         if match.group(2):  # minute specified
             minute = int(match.group(2))
         if match.group(3):  # am/pm specified
-            if match.group(3) == 'pm' and hour != 12:
+            ampm = match.group(3).lower().replace('.', '')
+            if 'pm' in ampm and hour != 12:
                 hour += 12
-            elif match.group(3) == 'am' and hour == 12:
+            elif 'am' in ampm and hour == 12:
                 hour = 0
     
     tomorrow = now + timedelta(days=1)
@@ -112,9 +113,10 @@ def _parse_next_week_day(match, now):
         if len(match.groups()) > 2 and match.group(3):  # minute specified
             minute = int(match.group(3))
         if len(match.groups()) > 3 and match.group(4):  # am/pm specified
-            if match.group(4) == 'pm' and hour != 12:
+            ampm = match.group(4).lower().replace('.', '')
+            if 'pm' in ampm and hour != 12:
                 hour += 12
-            elif match.group(4) == 'am' and hour == 12:
+            elif 'am' in ampm and hour == 12:
                 hour = 0
     
     # Find next week's day (always next week, not this week)
@@ -138,9 +140,10 @@ def _parse_next_day(match, now):
         if len(match.groups()) > 2 and match.group(3):  # minute specified
             minute = int(match.group(3))
         if len(match.groups()) > 3 and match.group(4):  # am/pm specified
-            if match.group(4) == 'pm' and hour != 12:
+            ampm = match.group(4).lower().replace('.', '')
+            if 'pm' in ampm and hour != 12:
                 hour += 12
-            elif match.group(4) == 'am' and hour == 12:
+            elif 'am' in ampm and hour == 12:
                 hour = 0
     
     # Find next occurrence of the day
@@ -161,9 +164,10 @@ def _parse_this_week_day(match, now):
         if len(match.groups()) > 2 and match.group(3):  # minute specified
             minute = int(match.group(3))
         if len(match.groups()) > 3 and match.group(4):  # am/pm specified
-            if match.group(4) == 'pm' and hour != 12:
+            ampm = match.group(4).lower().replace('.', '')
+            if 'pm' in ampm and hour != 12:
                 hour += 12
-            elif match.group(4) == 'am' and hour == 12:
+            elif 'am' in ampm and hour == 12:
                 hour = 0
     
     # Find this week's day
@@ -188,9 +192,10 @@ def _parse_day_of_week(match, now):
         if len(match.groups()) > 2 and match.group(3):  # minute specified
             minute = int(match.group(3))
         if len(match.groups()) > 3 and match.group(4):  # am/pm specified
-            if match.group(4) == 'pm' and hour != 12:
+            ampm = match.group(4).lower().replace('.', '')
+            if 'pm' in ampm and hour != 12:
                 hour += 12
-            elif match.group(4) == 'am' and hour == 12:
+            elif 'am' in ampm and hour == 12:
                 hour = 0
     
     # Find closest upcoming day

@@ -3,6 +3,7 @@ from agent.schemas import SessionState, Lead, TraceTurn, ToolCall
 from agent.flows.sales import next_agent_reply
 from agent.tools import calendar, crm_stub
 from agent.tts import speak_text
+from agent.evaluation import evaluate_conversation
 
 
 # In-memory session storage (for MVP)
@@ -62,6 +63,12 @@ def handle_turn(session_id: str, lead: Lead, user_text: str) -> Dict[str, Any]:
         # Mark as done if final
         if response.get("final", False):
             session.done = True
+            # Evaluate the conversation
+            try:
+                outcome = "interested" if any("calendar.create_event" in str(tc.name) for tc in response.get("tool_calls", [])) else "not_interested"
+                evaluate_conversation(session, outcome)
+            except Exception as e:
+                print(f"Evaluation error: {e}")
         
         # TTS is handled by the voice sales agent, not here
         # try:

@@ -37,14 +37,39 @@ class VonageWebhookHandler:
         """
         print(f"DEBUG: handle_incoming_call called with UUID: {call_uuid}")
         
-        # Create a lead from the call
-        lead = Lead(
-            id=f"call_{call_uuid}",
-            name="Unknown Caller",
-            phone=from_number,
-            email=None,
-            company=None
-        )
+        # Create a lead from the call - try to find existing lead in CRM first
+        lead = None
+        try:
+            from agent.tools import crm_sheets
+            crm_sheets.ensure_sheets_exist()
+            existing_leads = crm_sheets.list_leads(limit=1000)  # Get all leads
+            if existing_leads.get("ok") and existing_leads.get("leads"):
+                for existing_lead in existing_leads["leads"]:
+                    if existing_lead.get("phone") == from_number:
+                        # Found existing lead in CRM
+                        lead = Lead(
+                            id=f"call_{call_uuid}",
+                            name=existing_lead.get("name") or "Unknown Caller",
+                            phone=from_number,
+                            email=existing_lead.get("email"),
+                            company=existing_lead.get("company"),
+                            notes=existing_lead.get("notes")
+                        )
+                        print(f"DEBUG: Found existing lead in CRM: {lead.name} ({lead.email})")
+                        break
+        except Exception as e:
+            print(f"DEBUG: Error looking up lead in CRM: {e}")
+        
+        # If no existing lead found, create a new one
+        if not lead:
+            lead = Lead(
+                id=f"call_{call_uuid}",
+                name="Unknown Caller",
+                phone=from_number,
+                email=None,
+                company=None
+            )
+            print(f"DEBUG: Created new lead: {lead.name}")
         
         # Store call data
         self.active_calls[call_uuid] = {
@@ -120,7 +145,11 @@ class VonageWebhookHandler:
         session_id = call_data['session_id']
         
         # Process user input through sales flow
+        print(f"DEBUG: Processing speech: '{speech_result}'")
         response = handle_turn(session_id, lead, speech_result)
+        print(f"DEBUG: Response: {response}")
+        print(f"DEBUG: Tool calls: {response.get('tool_calls', [])}")
+        print(f"DEBUG: Tool results: {response.get('tool_results', [])}")
         
         if response and response.get("reply"):
             # Log call snippet to CRM
@@ -133,9 +162,6 @@ class VonageWebhookHandler:
                 # End the call
                 call_data['turn_count'] += 1
                 ncco = self.vonage.generate_ncco(response["reply"], gather=False)
-                
-                # Add hangup action
-                ncco.append({"action": "hangup"})
                 
                 # Clean up call data
                 del self.active_calls[call_uuid]

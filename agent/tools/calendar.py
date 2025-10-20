@@ -51,14 +51,15 @@ def create_event(
         start_datetime = iso_localize(datetime.fromisoformat(start_dt))
         end_datetime = iso_localize(datetime.fromisoformat(end_dt))
         
-        # Prepare attendees
+        # Prepare attendees (only include those with valid emails)
         attendee_list = []
         if attendees:
             for name, email in attendees:
-                attendee_list.append({
-                    "email": email,
-                    "displayName": name
-                })
+                if email and email.strip():  # Only add if email is not None/empty
+                    attendee_list.append({
+                        "email": email,
+                        "displayName": name
+                    })
         
         # Create event body
         event_body = {

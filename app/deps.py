@@ -51,6 +51,7 @@ def get_calendar_service():
     settings = get_settings()
     
     if not os.path.exists(settings.google_credentials_path):
+        print(f"Google credentials file not found at: {settings.google_credentials_path}")
         return None
     
     # OAuth token file path
@@ -61,30 +62,45 @@ def get_calendar_service():
         
         # Load existing token if available
         if os.path.exists(token_file):
+            print(f"Loading existing token from: {token_file}")
             with open(token_file, 'rb') as token:
                 credentials = pickle.load(token)
+            print(f"Token scopes: {credentials.scopes}")
+        else:
+            print("No existing token found, starting OAuth flow...")
         
         # If no valid credentials, get new ones
         if not credentials or not credentials.valid:
             if credentials and credentials.expired and credentials.refresh_token:
+                print("Refreshing expired credentials...")
                 credentials.refresh(Request())
             else:
                 # Start OAuth flow
+                print("Starting OAuth flow for Google Calendar and Sheets...")
                 flow = InstalledAppFlow.from_client_secrets_file(
                     settings.google_credentials_path,
-                    scopes=['https://www.googleapis.com/auth/calendar']
+                    scopes=[
+                        'https://www.googleapis.com/auth/calendar',
+                        'https://www.googleapis.com/auth/spreadsheets'
+                    ]
                 )
                 credentials = flow.run_local_server(port=0)
+                print("OAuth flow completed successfully!")
             
             # Save credentials for next time
+            print(f"Saving token to: {token_file}")
             with open(token_file, 'wb') as token:
                 pickle.dump(credentials, token)
         
+        print("Building Google Calendar service...")
         service = build('calendar', 'v3', credentials=credentials)
+        print("Google Calendar service initialized successfully!")
         return service
         
     except Exception as e:
         print(f"Failed to initialize Google Calendar service: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 

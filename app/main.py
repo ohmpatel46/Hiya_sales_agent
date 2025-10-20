@@ -4,6 +4,7 @@ from typing import Dict, Any
 import uuid
 from agent.schemas import Lead, SimulateInput, SimulateResponse, TriggerCallInput, TriggerCallResponse, VonageCallInput, VonageCallResponse
 from agent.orchestrator import handle_turn, create_session
+from agent.flows.langchain_sales import run_langchain_conversation
 from agent.vonage_webhook import setup_vonage_routes
 from agent.vonage_calls import make_vonage_call
 from app.deps import get_settings
@@ -148,6 +149,45 @@ async def make_vonage_call_endpoint(input_data: VonageCallInput):
 
 # Setup Vonage webhook routes
 setup_vonage_routes(app)
+
+
+@app.post("/langchain/simulate", response_model=SimulateResponse)
+async def simulate_langchain_conversation(input_data: SimulateInput):
+    """Continue a conversation using LangChain/LangGraph"""
+    try:
+        # Get the lead from the session
+        lead_data = input_data.lead
+        
+        # Run LangChain conversation
+        response = run_langchain_conversation(input_data.session_id, lead_data, input_data.user_input)
+        
+        return SimulateResponse(
+            reply=response["reply"],
+            state=response["state"],
+            tool_results=response.get("tool_results", []),
+            final=response.get("final", False)
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/evaluation/performance")
+async def get_performance_metrics():
+    """Get sales agent performance metrics"""
+    try:
+        from agent.evaluation import get_performance_summary
+        performance = get_performance_summary()
+        return {
+            "total_conversations": performance.total_conversations,
+            "success_rate": performance.success_rate,
+            "meeting_rate": performance.meeting_rate,
+            "average_quality_score": performance.quality_score_average,
+            "error_rate": performance.error_rate,
+            "outcomes": performance.common_outcomes
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

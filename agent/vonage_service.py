@@ -87,8 +87,8 @@ class VonageService:
             ncco = [
                 {
                     "action": "talk",
-                    "text": f"<speak><prosody rate=\"fast\">Hey {lead.name}, I am calling about TopSales, our AI based Lead generator that turns cold leads into warm ones by using realistic automated calls and scheduling followups. Would you like to learn more?</prosody></speak>",
-                    "voiceName": "Amy",
+                    "text": f"<speak><prosody rate=\"fast\">Hey {lead.name}, I am calling about <emphasis level=\"moderate\">TopSales</emphasis>, our AI-based lead generator that turns cold leads into warm ones using realistic automated calls and scheduling follow-ups.<break time=\"120ms\"/>Would you like to learn more?</prosody></speak>",
+                    "voiceName": "Joanna",
                     "ssml": True
                 },
                 {
@@ -96,7 +96,7 @@ class VonageService:
                     "type": ["speech"],
                     "speech": {
                         "endOnSilence": 1.5,
-                        "timeout": 5
+                        "timeout": 1
                     },
                     "eventUrl": [f"{webhook_url}/vonage/voice/input"],
                     "eventMethod": "POST"
@@ -146,7 +146,7 @@ class VonageService:
             {
                 "action": "talk",
                 "text": f"<speak><prosody rate=\"fast\">{message}</prosody></speak>",
-                "voiceName": "Amy",
+                "voiceName": "Joanna",
                 "ssml": True
             }
         ]
@@ -157,7 +157,7 @@ class VonageService:
                 "type": ["speech"],
                 "speech": {
                     "endOnSilence": 1.5,
-                    "timeout": 5
+                    "timeout": 2
                 },
                 "eventUrl": [f"{webhook_url}/vonage/voice/input"],
                 "eventMethod": "POST"

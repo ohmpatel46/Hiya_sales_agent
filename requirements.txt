@@ -16,3 +16,7 @@ pyttsx3
 SpeechRecognition
 pyaudio
 vonage
+langchain
+langgraph
+langchain-community
+langchain-core

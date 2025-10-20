@@ -202,14 +202,48 @@ def _handle_confirmation(state: SessionState, utterance: str) -> Dict[str, Any]:
     has_negative = any(word in utterance_lower for word in negative_words)
     
     if has_positive and not has_negative:
-        # Confirm the meeting
-        return _confirm_meeting(state)
+        # Confirm the meeting; schedule pending event if present
+        pending = state.slots.get("pending_event")
+        tool_calls: List[ToolCall] = []
+        if pending:
+            tool_calls.append(ToolCall(
+                name="calendar.create_event",
+                args={
+                    "summary": pending["summary"],
+                    "description": pending["description"],
+                    "start_dt": pending["start_dt"],
+                    "end_dt": pending["end_dt"],
+                    "attendees": [(state.lead.name, state.lead.email)] if state.lead else [],
+                    "calendar_id": "primary"
+                }
+            ))
+            tool_calls.append(ToolCall(
+                name="crm_stub.log_followup",
+                args={
+                    "lead": state.lead.dict() if state.lead else {},
+                    "when": pending["start_dt"],
+                    "meta": {"type": pending.get("meta_type", "demo_call")}
+                }
+            ))
+            del state.slots["pending_event"]
+        reply = "Excellent! I've confirmed your demo call. You'll receive a calendar invitation shortly. I'm looking forward to showing you how our AI sales agent can help your team close more deals!"
+        return {
+            "reply": reply,
+            "tool_calls": tool_calls,
+            "final": True
+        }
     else:
-        reply = "No problem! Let me know if you'd like to reschedule or if you have any questions."
+        # If user corrects the time (negative but a new parsed time present), propose again
+        if "parsed_datetime" in state.slots:
+            # Clear any prior pending event to avoid reusing old time
+            if "pending_event" in state.slots:
+                del state.slots["pending_event"]
+            return _schedule_meeting_with_type(state, "demo")
+        reply = "No problem! What time should I book it for?"
         return {
             "reply": reply,
             "tool_calls": [],
-            "final": True
+            "final": False
         }
 
 
@@ -254,49 +288,31 @@ def _schedule_meeting_with_type(state: SessionState, meeting_type: str) -> Dict[
             "final": False
         }
     
-    # Set appropriate title and description based on meeting type
+    # Build pending event and ask for confirmation (book on positive confirmation)
     if meeting_type == "demo":
         summary = f"AI Sales Agent Demo - {state.lead.name if state.lead else 'Prospect'}"
         description = "Demo call for AI sales agent service"
-        reply = f"Perfect! I'll schedule a demo call for {parsed_dt.strftime('%A, %B %d at %I:%M %p')}. Does that work for you?"
+        confirm_prompt = f"Perfect! I have you for {parsed_dt.strftime('%A, %B %d at %I:%M %p')}. Shall I book it?"
         meta_type = "demo_call"
-        # Mark that we're waiting for confirmation
-        state.slots["confirmation"] = True
-        final = False
     else:
         summary = f"Sales Follow-up Call - {state.lead.name if state.lead else 'Prospect'}"
         description = "Follow-up call for AI sales agent service"
-        reply = f"Got it! I'll call you back on {parsed_dt.strftime('%A, %B %d at %I:%M %p')}. Thank you for your time!"
+        confirm_prompt = f"Understood. {parsed_dt.strftime('%A, %B %d at %I:%M %p')}. Shall I lock that in?"
         meta_type = "follow_up_call"
-        final = True
-    
-    # Create calendar event and log meeting request
-    tool_calls = [
-        ToolCall(
-            name="calendar.create_event",
-            args={
-                "summary": summary,
-                "description": description,
-                "start_dt": parsed_dt.isoformat(),
-                "end_dt": (parsed_dt + timedelta(minutes=30)).isoformat(),
-                "attendees": [(state.lead.name, state.lead.email)] if state.lead else [],
-                "calendar_id": "primary"
-            }
-        ),
-        ToolCall(
-            name="crm_stub.log_followup",
-            args={
-                "lead": state.lead.dict() if state.lead else {},
-                "when": parsed_dt.isoformat(),
-                "meta": {"type": meta_type}
-            }
-        )
-    ]
-    
+
+    state.slots["pending_event"] = {
+        "summary": summary,
+        "description": description,
+        "start_dt": parsed_dt.isoformat(),
+        "end_dt": (parsed_dt + timedelta(minutes=30)).isoformat(),
+        "meta_type": meta_type
+    }
+    state.slots["confirmation"] = True
+
     return {
-        "reply": reply,
-        "tool_calls": tool_calls,
-        "final": final
+        "reply": confirm_prompt,
+        "tool_calls": [],
+        "final": False
     }
 
 def _schedule_followup(state: SessionState) -> Dict[str, Any]:
