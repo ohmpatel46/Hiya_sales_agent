@@ -1,0 +1,81 @@
+[
+  {
+    "name": "interested_direct",
+    "lead": {
+      "id": "l1",
+      "name": "Jordan",
+      "phone": "+1-555-123-4567",
+      "email": "jordan@techcorp.com",
+      "company": "TechCorp"
+    },
+    "turns": [
+      {"user": "hello"},
+      {"user": "Yes I'm interested. Tomorrow at 2pm works"},
+      {"user": "yes confirm"}
+    ],
+    "expect": {"scheduled": true}
+  },
+  {
+    "name": "busy_followup",
+    "lead": {
+      "id": "l2",
+      "name": "Ari",
+      "phone": "+1-555-987-6543",
+      "email": "ari@startup.io",
+      "company": "StartupIO"
+    },
+    "turns": [
+      {"user": "Not now, call me next week"},
+      {"user": "Wednesday 10am"}
+    ],
+    "expect": {"followup": true}
+  },
+  {
+    "name": "request_info",
+    "lead": {
+      "id": "l3",
+      "name": "Sam",
+      "phone": "+1-555-456-7890",
+      "email": "sam@enterprise.com",
+      "company": "Enterprise Corp"
+    },
+    "turns": [
+      {"user": "hello"},
+      {"user": "Send me more information"},
+      {"user": "email me the details"}
+    ],
+    "expect": {"info_requested": true}
+  },
+  {
+    "name": "rejection",
+    "lead": {
+      "id": "l4",
+      "name": "Taylor",
+      "phone": "+1-555-321-0987",
+      "email": "taylor@smallbiz.com",
+      "company": "SmallBiz"
+    },
+    "turns": [
+      {"user": "hello"},
+      {"user": "Not interested, please remove me"}
+    ],
+    "expect": {"rejected": true}
+  },
+  {
+    "name": "interested_no_time",
+    "lead": {
+      "id": "l5",
+      "name": "Casey",
+      "phone": "+1-555-654-3210",
+      "email": "casey@midmarket.com",
+      "company": "MidMarket Inc"
+    },
+    "turns": [
+      {"user": "hello"},
+      {"user": "Yes I'm interested"},
+      {"user": "Next week works"},
+      {"user": "Tuesday afternoon"}
+    ],
+    "expect": {"scheduled": true}
+  }
+]
