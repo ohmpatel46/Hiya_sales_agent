@@ -52,7 +52,7 @@ def log_followup(lead: Dict[str, Any], when: str, meta: Dict[str, Any] = None) -
 
 def _append_to_log(log_entry: Dict[str, Any]) -> Dict[str, Any]:
     """Append entry to CRM log file"""
-    log_file = "./crm_log.jsonl"
+    log_file = "./eval/crm_log.jsonl"
     
     try:
         # Ensure directory exists

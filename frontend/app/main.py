@@ -3,11 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
 import uuid
 from agent.schemas import Lead, SimulateInput, SimulateResponse, TriggerCallInput, TriggerCallResponse, VonageCallInput, VonageCallResponse
-from agent.orchestrator import handle_turn, create_session
-from agent.flows.langchain_sales import run_langchain_conversation
-from agent.vonage_webhook import setup_vonage_routes
-from agent.vonage_calls import make_vonage_call
-from app.deps import get_settings
+from agent.state import ConversationState
+from agent.graph import run_conversation_turn
+from agent.real_call_agent.vonage_webhook import setup_vonage_routes
+from agent.real_call_agent.vonage_calls import make_vonage_call
+from frontend.app.deps import get_settings
 import os
 
 app = FastAPI(title="Hiya Sales Agent", version="1.0.0")
@@ -57,6 +57,9 @@ async def create_lead(lead_data: Dict[str, Any]):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# Global sessions dictionary
+sessions = {}
+
 @app.post("/trigger_call", response_model=TriggerCallResponse)
 async def trigger_call(input_data: TriggerCallInput):
     """Start a simulated call with a lead"""
@@ -64,16 +67,43 @@ async def trigger_call(input_data: TriggerCallInput):
         # Generate session ID
         session_id = str(uuid.uuid4())
         
-        # Create session
-        session = create_session(session_id, input_data.lead)
+        # Create ConversationState
+        # Build lead dict for ConversationState
+        lead_dict = {
+            "id": session_id,
+            "name": input_data.lead.name,
+            "phone": input_data.lead.phone,
+            "email": input_data.lead.email,
+            "company": input_data.lead.company
+        }
         
-        # Get initial agent response (empty user input triggers greeting)
-        response = handle_turn(session_id, input_data.lead, "")
+        initial_state = ConversationState(
+            session_id=session_id,
+            phase="intro",
+            intent=None,
+            tone=None,
+            lead=lead_dict,
+            slots={},
+            done=False,
+            last_agent_reply=None,
+            conversation_history=[],
+            current_user_utterance=None,
+            tone_confidence=None
+        )
+        
+        # Store in sessions
+        sessions[session_id] = initial_state
+        
+        # Run initial turn with empty user utterance to get greeting
+        result_state = run_conversation_turn(initial_state, "")
+        
+        # Update stored state
+        sessions[session_id] = result_state
         
         return TriggerCallResponse(
             session_id=session_id,
-            reply=response["reply"],
-            state=response["state"]
+            reply=result_state.last_agent_reply or "",
+            state={"phase": result_state.phase, "done": result_state.done}
         )
         
     except Exception as e:
@@ -84,14 +114,23 @@ async def trigger_call(input_data: TriggerCallInput):
 async def simulate_conversation(input_data: SimulateInput):
     """Continue a simulated conversation"""
     try:
-        # Handle the conversation turn
-        response = handle_turn(input_data.session_id, input_data.lead, input_data.utterance)
+        # Get stored state
+        if input_data.session_id not in sessions:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        current_state = sessions[input_data.session_id]
+        
+        # Run conversation turn
+        result_state = run_conversation_turn(current_state, input_data.utterance)
+        
+        # Update stored state
+        sessions[input_data.session_id] = result_state
         
         return SimulateResponse(
-            reply=response["reply"],
-            state=response["state"],
-            tool_results=response["tool_results"],
-            final=response["final"]
+            reply=result_state.last_agent_reply or "",
+            state={"phase": result_state.phase, "done": result_state.done},
+            tool_results=[],
+            final=result_state.done
         )
         
     except Exception as e:
@@ -148,18 +187,19 @@ async def make_vonage_call_endpoint(input_data: VonageCallInput):
 
 
 # Setup Vonage webhook routes
-setup_vonage_routes(app)
+# setup_vonage_routes(app)  # Uncomment if using Vonage
 
 
-@app.post("/langchain/simulate", response_model=SimulateResponse)
-async def simulate_langchain_conversation(input_data: SimulateInput):
-    """Continue a conversation using LangChain/LangGraph"""
-    try:
-        # Get the lead from the session
-        lead_data = input_data.lead
-        
-        # Run LangChain conversation
-        response = run_langchain_conversation(input_data.session_id, lead_data, input_data.user_input)
+# Old LangChain endpoint - now use /simulate which uses LangGraph
+# @app.post("/langchain/simulate", response_model=SimulateResponse)
+# async def simulate_langchain_conversation(input_data: SimulateInput):
+#     """Continue a conversation using LangChain/LangGraph"""
+#     try:
+#         # Get the lead from the session
+#         lead_data = input_data.lead
+#         
+#         # Run LangChain conversation
+#         response = run_langchain_conversation(input_data.session_id, lead_data, input_data.user_input)
         
         return SimulateResponse(
             reply=response["reply"],

@@ -4,8 +4,9 @@ Vonage Webhook Handler for Voice Calls
 """
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import Response
-from agent.vonage_service import get_vonage_service
-from agent.orchestrator import handle_turn
+from agent.real_call_agent.vonage_service import get_vonage_service
+# Note: orchestrator is old code - Vonage webhooks need to be updated to use LangGraph
+# from agent.orchestrator import handle_turn
 from agent.tools import calendar as calendar_tool
 from agent.tools import crm_sheets
 from agent.schemas import Lead

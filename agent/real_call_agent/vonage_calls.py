@@ -3,7 +3,7 @@
 Vonage Voice Call Integration
 """
 from agent.schemas import Lead
-from agent.vonage_service import get_vonage_service
+from agent.real_call_agent.vonage_service import get_vonage_service
 from typing import Optional
 
 

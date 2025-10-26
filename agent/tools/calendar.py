@@ -1,7 +1,18 @@
 from typing import List, Tuple, Optional, Dict, Any
 from datetime import datetime
 import pytz
-from app.deps import get_settings, get_calendar_service
+try:
+    from frontend.app.deps import get_settings, get_calendar_service
+except ImportError:
+    # Fallback for standalone usage
+    from typing import Optional, Any
+    def get_settings():
+        class Settings:
+            google_credentials_path: Optional[str] = None
+            google_calendar_id: str = "primary"
+        return Settings()
+    def get_calendar_service():
+        return None
 
 
 def iso_localize(dt: datetime) -> datetime:

@@ -1,258 +1,362 @@
-# Hiya Sales Agent MVP
+# Hiya Sales Agent - AI Voice Sales Agent MVP
 
-## Overview
+**Best Performance:** The terminal-based agent with Voice Activity Detection (`python -m terminal.voice_demo_vad`) is the most performant, production-ready version with full LangGraph workflow, OpenAI integration, Google Calendar booking, and CRM logging.
 
-This is a local simulation of an AI voice agent that can place initial sales calls, pitch products, and schedule follow-up calls. The MVP focuses on text-based simulation with Google Calendar integration for scheduling.
+## Quick Start (MVP)
 
-## Features
+### Run the Voice Agent (Recommended)
 
-- **Simulated Sales Call Flow**: AI agent conducts sales conversations with intent recognition
-- **Google Calendar Integration**: Automatically schedules demo calls and follow-ups
-- **Lead Management**: Add and manage prospects through a Streamlit UI
-- **Evaluation Harness**: Test different conversation scenarios
-- **Pluggable LLM Adapter**: Currently stubbed, ready for OpenAI integration
-- **CRM Logging**: Tracks all interactions in JSON format
+```bash
+# Voice conversation with Voice Activity Detection (auto-stops on silence)
+python -m terminal.voice_demo_vad
+```
 
-## Quick Start
+**Features:**
+- Real-time voice conversation using OpenAI Whisper (STT) and OpenAI TTS
+- Voice Activity Detection for natural pauses
+- Real calendar booking when meeting is confirmed
+- Real CRM logging to Google Sheets
+- LLM-based intent classification and response generation
+- 1.5x speed playback for faster responses
 
-### 1. Install Dependencies
+### Text-Only Demo
+
+```bash
+# Text-based conversation
+python -m terminal.demo
+```
+
+## Prerequisites
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Set Up Environment
-
-Copy the sample environment file and configure it:
-
-```bash
-cp .env.sample .env
-```
-
-Edit `.env` with your settings:
-
+Create `.env` file:
 ```env
-# General
-APP_ENV=local
-TZ=America/New_York
-
-# Google Calendar
+OPENAI_API_KEY=your_key_here
 GOOGLE_CREDENTIALS_PATH=./google_credentials.json
 GOOGLE_CALENDAR_ID=primary
-
-# Model (stub now, swap later)
-MODEL_PROVIDER=stub
-OPENAI_API_KEY=
+TZ=America/New_York
 ```
 
-### 3. Set Up Google Calendar (Optional)
+## Repository Structure
 
-To enable calendar integration:
+### MVP Dependencies (Terminal Agent)
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing one
-3. Enable the Google Calendar API
-4. Create a Service Account:
-   - Go to "IAM & Admin" > "Service Accounts"
-   - Click "Create Service Account"
-   - Download the JSON credentials file
-   - Save as `google_credentials.json` in the project root
-5. Share your calendar with the service account email
+```
+terminal/
+├── voice_demo_vad.py       # Voice agent with VAD (MVP - RECOMMENDED)
+├── voice_demo.py           # Voice agent with timeout
+└── demo.py                 # Text-only agent
 
-### 4. Test the Installation
-
-Run the component test to verify everything is working:
-
-```bash
-python test_components.py
+agent/                       # Shared core logic
+├── graph.py                 # LangGraph state machine
+├── state.py                 # ConversationState model
+├── llm_tools.py            # OpenAI LLM integration
+├── planner.py              # Business logic (deterministic)
+├── response_node.py        # Response generation
+├── path_nodes.py           # Path handlers (includes calendar!)
+├── tools/
+│   ├── calendar.py        # Google Calendar booking
+│   ├── crm_sheets.py      # Google Sheets CRM
+│   └── crm_stub.py        # Local CRM logging
 ```
 
-### 5. Run the Application
+**Shared by all:** All terminal demos use the shared `agent/` workflow.
 
-**Option 1: Use the startup script (recommended):**
-```bash
-python start.py
+### Frontend Dependencies (Streamlit App)
+
+```
+frontend/
+├── streamlit_app.py        # Streamlit UI
+├── pages/
+│   └── voice_agent.py     # Voice-enabled Streamlit page
+└── app/
+    └── main.py            # FastAPI backend
 ```
 
-**Option 2: Manual startup:**
-```bash
-# Terminal 1 - Start FastAPI server
-uvicorn app.main:app --reload
+### Key Differences
 
-# Terminal 2 - Start Streamlit UI  
-streamlit run app/streamlit_ui.py
-```
+- **MVP (`terminal/`)**: Standalone, uses `agent/` directly for LangGraph workflow
+- **Frontend (`frontend/`)**: Uses FastAPI to call LangGraph workflow, adds Streamlit UI layer
 
-The Streamlit UI will be available at `http://localhost:8501`
+## Agent Workflow: LangGraph + LangChain
 
-### 6. Try the Demo
+### State Machine (LangGraph)
 
-Run a quick demo to see the system in action:
+The agent uses **LangGraph** to orchestrate conversation flow:
 
-```bash
-python demo.py
-```
-
-## Usage
-
-### Streamlit UI
-
-1. **Add a Lead**: Fill out the form in the sidebar with prospect information
-2. **Start Call**: Click "Start Call" next to a lead to begin simulation
-3. **Respond**: Type your responses to simulate the conversation
-4. **Schedule**: The agent will attempt to schedule meetings in Google Calendar
-
-**Example Responses:**
-- `"Yes, I'm interested. Tomorrow at 2pm works"`
-- `"I'm busy right now, call me next week"`
-- `"Send me more information"`
-- `"Not interested, please remove me"`
-
-### API Endpoints
-
-- `GET /health` - Health check
-- `POST /leads` - Create a new lead
-- `POST /trigger_call` - Start a simulated call
-- `POST /simulate` - Continue a simulated conversation
-- `GET /leads` - List all leads
-- `GET /leads/{lead_id}` - Get specific lead
-
-### Example API Usage
-
+**State Model (`agent/state.py`):**
 ```python
-import requests
-
-# Create a lead
-lead_data = {
-    "name": "John Doe",
-    "phone": "+1-555-123-4567",
-    "email": "john@company.com",
-    "company": "Acme Corp"
-}
-response = requests.post("http://localhost:8000/leads", json=lead_data)
-lead = response.json()
-
-# Start a call
-response = requests.post("http://localhost:8000/trigger_call", json={"lead": lead})
-call_data = response.json()
-print(f"Agent: {call_data['reply']}")
-
-# Continue conversation
-response = requests.post("http://localhost:8000/simulate", json={
-    "session_id": call_data["session_id"],
-    "lead": lead,
-    "utterance": "Yes, I'm interested. Tomorrow at 2pm works"
-})
-print(f"Agent: {response.json()['reply']}")
+class ConversationState:
+    phase: str              # Current phase (intro, propose_meeting, etc.)
+    intent: str             # User intent (interested, busy, question)
+    tone: str               # User tone (friendly, rushed, skeptical)
+    lead: Lead              # Lead information
+    slots: dict             # Extracted data (datetime, etc.)
+    done: bool              # Conversation complete?
+    conversation_history: list  # Full conversation history
 ```
 
-## Testing
+**Graph Nodes (`agent/graph.py`):**
+1. `bridge_and_nudge` - Classifies intent/tone, generates response
+2. `route_next_action` - Decides next action (deterministic Python)
+3. Path nodes - Handle specific actions (scheduling, sending info, etc.)
 
-### Run Unit Tests
+**Deterministic Logic (`agent/planner.py`):**
+- **Intent Classification**: Uses OpenAI to classify user intent
+- **Tone Detection**: Heuristics + LLM for detecting user mood
+- **DateTime Extraction**: Python regex to extract "tomorrow 2pm", etc.
+- **Next Action Decision**: Python code (not LLM) decides what to do next
 
-```bash
-pytest tests/
+### LLM Integration (LangChain)
+
+**OpenAI GPT-4o-mini** is used for:
+
+1. **Intent Classification** (`agent/llm_tools.py`):
+   - Takes user utterance and conversation history
+   - Returns: `{"intent": "interested", "confidence": 0.9}`
+   - Context-aware with conversation history
+
+2. **Response Generation** (`agent/llm_tools.py`):
+   - Takes state, utterance, and next action
+   - Uses system prompt with:
+     - Conversation history (last 2 turns)
+     - Company info
+     - Tone guide
+     - Call-to-action
+   - Returns natural, SDR-like responses
+
+**System Prompt Structure:**
+```python
+You're an SDR for Autopitch AI talking to {lead.name}.
+
+Context: {conversation_history[-2:]}
+Goal: {next_action}  # propose_meeting, answer_question, etc.
+Tone: {detected_tone}
+CTA: Suggest a quick walkthrough call
+
+Requirements:
+- No meta-commentary
+- Stay conversational
+- Match user's tone
 ```
 
-### Run Evaluation Harness
+### Tools Integration
 
-```bash
-python eval/run_eval.py
+**Calendar Booking (`agent/tools/calendar.py`):**
+```python
+# When meeting confirmed in schedule_path_node
+result = calendar.create_event(
+    summary=f"Demo Call - {lead.name}",
+    start_dt=datetime.isoformat(),
+    end_dt=end_datetime.isoformat(),
+    attendees=[(lead.name, lead.email)]
+)
 ```
 
-The evaluation harness tests different conversation scenarios:
-- Interested users who schedule demos
-- Busy users who request follow-ups
-- Users who request information
-- Users who reject the offer
+**CRM Logging (`agent/tools/crm_stub.py`):**
+- Logs to `eval/crm_log.jsonl`
+- Tracks outcomes, follow-ups, notes
 
-## Architecture
+**Google Sheets CRM (`agent/tools/crm_sheets.py`):**
+- Lists leads from Google Sheets
+- Upserts lead data
+- Logs conversation outcomes
 
-### Core Components
+### Conversation Flow Example
 
-- **Orchestrator** (`agent/orchestrator.py`): Manages conversation state and tool execution
-- **Sales Flow** (`agent/flows/sales.py`): Contains conversation logic and responses
-- **NLU** (`agent/nlu.py`): Intent recognition and slot extraction
-- **Calendar Tool** (`agent/tools/calendar.py`): Google Calendar integration
-- **CRM Stub** (`agent/tools/crm_stub.py`): Logs interactions to JSON file
+```
+User: "whos this?"
+  ↓
+LLM classifies intent: "question"
+  ↓
+LLM detects tone: "curious"
+  ↓
+Planner: provide_info (intro explanation)
+  ↓
+LLM generates: "Hi {name}, this is your AI sales agent..."
+  ↓
+Agent speaks via OpenAI TTS
+  ↓
+User: "tell me more"
+  ↓
+LLM classifies: "interested"
+  ↓
+Planner: provide_more_info
+  ↓
+LLM generates: "We help automate..." + CTA
+  ↓
+User: "tomorrow at 2pm works"
+  ↓
+Planner: confirm_meeting
+  ↓
+Extract datetime: tomorrow 2pm
+  ↓
+Calendar booking triggers
+  ↓
+Agent confirms + ends conversation
+```
 
-### Data Flow
+## Terminal Agent Features
 
-1. User input → NLU parsing → Intent + Slots
-2. Sales flow determines response → Tool calls
-3. Tools execute (calendar, CRM) → Results
-4. Response returned to user
+### Voice Demo with VAD (`terminal/voice_demo_vad.py`)
 
-### State Management
+**Real-time Voice:**
+- **STT**: OpenAI Whisper transcribes speech
+- **TTS**: OpenAI TTS speaks responses (onyx voice, 1.5x speed)
+- **VAD**: WebRTC Voice Activity Detection auto-stops on silence
+- **Continuous**: Automatically listens after agent speaks
 
-Sessions are stored in memory with:
-- Lead information
-- Conversation history
-- Extracted slots (time, preferences)
-- Tool execution results
+**Smart Conversation:**
+- Maintains full conversation history for context
+- Adapts tone based on user mood
+- Extracts datetime from natural language
+- Books calendar events automatically
+
+**CRM Integration:**
+- Logs all conversations to Google Sheets
+- Tracks meeting confirmations
+- Records outcomes for analytics
+
+### Text Demo (`terminal/demo.py`)
+
+- Same LangGraph workflow
+- Text input/output instead of voice
+- Faster for testing/development
+
+## Frontend App Features
+
+### Streamlit UI (`frontend/streamlit_app.py`)
+
+**Lead Management:**
+- Add leads via sidebar form
+- Integrates with Google Sheets if configured
+- Lists existing leads from Sheets or local storage
+
+**Call Simulation:**
+- Text-based conversation interface
+- Conversation history display
+- Real-time agent responses
+- Calendar event creation tracking
+
+**API Integration:**
+- Calls FastAPI endpoints
+- Maintains session state
+- Displays tool results
+
+### Voice Agent Page (`frontend/pages/voice_agent.py`)
+
+**Real-time Voice:**
+- Voice input with VAD
+- OpenAI TTS output
+- Configurable voice selection
+- 1.5x speed playback
+
+**Lead Selection:**
+- Loads leads from Google Sheets
+- Demo lead option
+- Real leads with phone/email
+
+**Calendar Integration:**
+- Books meetings after confirmation
+- Shows event links
+
+### FastAPI Backend (`frontend/app/main.py`)
+
+**Endpoints:**
+- `POST /trigger_call` - Start conversation
+- `POST /simulate` - Continue conversation
+- `GET /leads` - List leads
+- `POST /leads` - Add lead
+
+**LangGraph Integration:**
+- Uses `agent/graph.py` for workflow
+- Maintains session state in memory
+- Returns conversation results
 
 ## Configuration
 
-### Environment Variables
+### Google Calendar Setup
 
-- `APP_ENV`: Application environment (default: "local")
-- `TZ`: Timezone for calendar events (default: "America/New_York")
-- `GOOGLE_CREDENTIALS_PATH`: Path to Google service account JSON
-- `GOOGLE_CALENDAR_ID`: Calendar ID (default: "primary")
-- `MODEL_PROVIDER`: LLM provider (default: "stub")
-- `OPENAI_API_KEY`: OpenAI API key (for future use)
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project
+3. Enable Google Calendar API
+4. Create Service Account → Download JSON → Save as `google_credentials.json`
+5. Share your calendar with the service account email
 
-### Calendar Integration
+### Google Sheets Setup (Optional)
 
-The system uses Google Calendar API with service account authentication. Events are created with:
-- 30-minute duration for demo calls
-- Email and popup reminders
-- Attendee information when available
+1. Create a Google Sheet
+2. Create tabs: "Leads", "Calls", "Bookings"
+3. Share with service account email
+4. Add sheet ID to `.env`:
+```env
+GOOGLE_SHEETS_ID=your_sheet_id
+```
 
-## Troubleshooting
+### OpenAI Setup
 
-### Common Issues
+1. Get API key from [OpenAI Platform](https://platform.openai.com/)
+2. Add to `.env`:
+```env
+OPENAI_API_KEY=sk-...
+```
 
-**Calendar events not created:**
-- Check that `google_credentials.json` exists and is valid
-- Verify the service account has calendar access
-- Ensure the calendar ID is correct
+### Running the MVP
 
-**Streamlit UI not loading:**
-- Make sure FastAPI server is running on port 8000
-- Check that all dependencies are installed
+```bash
+# Voice agent (recommended)
+python -m terminal.voice_demo_vad
 
-**Tests failing:**
-- Run `pytest -v` for detailed output
-- Check that test data is valid
+# Text agent
+python -m terminal.demo
+```
 
-### Logs
+### Running Frontend
 
-- CRM interactions are logged to `crm_log.jsonl`
-- FastAPI logs are displayed in the terminal
-- Streamlit logs are shown in the browser console
+```bash
+# Start both FastAPI and Streamlit
+python start.py
 
-## Next Steps
+# Or separately:
+uvicorn frontend.app.main:app --reload
+streamlit run frontend/streamlit_app.py
+```
 
-### Planned Enhancements
+## Architecture Summary
 
-1. **Real LLM Integration**: Replace stub with OpenAI GPT models
-2. **Voice TTS**: Add ElevenLabs text-to-speech
-3. **Real Telephony**: Integrate Twilio for actual phone calls
-4. **Enhanced Objection Handling**: More sophisticated response logic
-5. **ISP Cancellation Flow**: Alternative conversation flows
-6. **Analytics Dashboard**: Track conversion rates and metrics
+- **LangGraph**: State machine orchestration (deterministic business logic)
+- **LangChain**: LLM integration (intent classification, response generation)
+- **OpenAI**: GPT-4o-mini (LLM), Whisper (STT), TTS (voice)
+- **Python**: Business decisions, datetime extraction, path routing
+- **Tools**: Google Calendar, Google Sheets, CRM logging
 
-### Development
+## Development
 
-To contribute:
+### Adding a New Intent
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Run the evaluation harness
-5. Submit a pull request
+1. Add intent in `agent/llm_tools.py` → `classify_intent_chain()`
+2. Add action in `agent/planner.py` → `decide_next_action()`
+3. Add response in `agent/llm_tools.py` → `generate_reply_chain()`
+4. Add path node in `agent/path_nodes.py` if needed
+5. Update graph in `agent/graph.py`
 
-## License
+### Testing
 
-This project is for demonstration purposes. Please ensure compliance with applicable laws and regulations when using for actual sales calls.
+```bash
+# Run voice agent
+python -m terminal.voice_demo_vad
+
+# Run text agent
+python -m terminal.demo
+```
+
+## Notes
+
+- **Deterministic Logic**: Business decisions are Python-driven, not LLM-driven
+- **LLM for Phrasing**: OpenAI is only used for natural responses and tone adaptation
+- **Calendar Booking**: Happens automatically when meeting confirmed
+- **CRM Logging**: All conversations logged to `eval/crm_log.jsonl`
+- **Voice Demo**: Most natural conversation experience with VAD

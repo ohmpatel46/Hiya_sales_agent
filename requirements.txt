@@ -15,8 +15,12 @@ requests
 pyttsx3
 SpeechRecognition
 pyaudio
+openai-whisper
+pygame
+webrtcvad
 vonage
 langchain
 langgraph
 langchain-community
 langchain-core
+langchain-openai

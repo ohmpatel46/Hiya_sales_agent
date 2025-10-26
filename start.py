@@ -31,7 +31,7 @@ def start_fastapi():
     try:
         subprocess.Popen([
             sys.executable, "-m", "uvicorn", 
-            "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"
+            "frontend.app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"
         ])
         print("OK FastAPI server started on http://localhost:8000")
         return True
@@ -45,10 +45,12 @@ def start_streamlit():
     print("Starting Streamlit UI...")
     try:
         subprocess.Popen([
-            sys.executable, "-m", "streamlit", "run", "app/streamlit_ui.py",
+            sys.executable, "-m", "streamlit", "run", "frontend/streamlit_app.py",
             "--server.port", "8501", "--server.address", "0.0.0.0"
         ])
         print("OK Streamlit UI started on http://localhost:8501")
+        print("   • Main page: http://localhost:8501")
+        print("   • Voice Agent: http://localhost:8501/Voice_Agent")
         return True
     except Exception as e:
         print(f"X Failed to start Streamlit UI: {e}")
@@ -61,7 +63,7 @@ def main():
     print("=" * 40)
     
     # Check if we're in the right directory
-    if not Path("app/main.py").exists():
+    if not Path("frontend/app/main.py").exists():
         print("X Please run this script from the project root directory")
         sys.exit(1)
     
@@ -71,12 +73,15 @@ def main():
     
     # Check for .env file
     if not Path(".env").exists():
-        print("WARNING: No .env file found. Copying from .env.sample...")
-        if Path(".env.sample").exists():
-            subprocess.run(["cp", ".env.sample", ".env"])
-            print("OK Created .env file from .env.sample")
-        else:
-            print("X No .env.sample file found")
+        print("WARNING: No .env file found. Creating from template...")
+        env_content = """OPENAI_API_KEY=your_key_here
+GOOGLE_CREDENTIALS_PATH=./google_credentials.json
+GOOGLE_CALENDAR_ID=primary
+TZ=America/New_York
+"""
+        with open(".env", "w") as f:
+            f.write(env_content)
+        print("OK Created .env file")
     
     # Start services
     print("\nStarting services...")

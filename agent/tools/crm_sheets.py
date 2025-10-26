@@ -1,6 +1,17 @@
 from typing import Dict, Any, Optional
 from datetime import datetime
-from app.deps import get_settings, get_sheets_service
+try:
+    from frontend.app.deps import get_settings, get_sheets_service
+except ImportError:
+    # Fallback for standalone usage
+    from typing import Optional, Any
+    def get_settings():
+        class Settings:
+            google_credentials_path: Optional[str] = None
+            google_sheets_id: str = None
+        return Settings()
+    def get_sheets_service():
+        return None
 
 
 LEADS_SHEET = "Leads"

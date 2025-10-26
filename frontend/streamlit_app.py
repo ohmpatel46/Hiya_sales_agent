@@ -1,8 +1,40 @@
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 import streamlit as st
 import requests
 import json
 from typing import Dict, Any, List
-import os
+import sys
+
+# Add agent directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+# Check if voice dependencies are available
+try:
+    from openai import OpenAI
+    import pyaudio
+    VOICE_AVAILABLE = True
+except ImportError:
+    VOICE_AVAILABLE = False
+    st.warning("⚠️ Voice dependencies not installed. Run: pip install openai pyaudio")
+
+if VOICE_AVAILABLE:
+    try:
+        import speech_recognition as sr
+        from agent.voice_demo import speak_with_openai_tts, transcribe_audio_with_whisper_api
+        
+        # Initialize speech recognizer
+        recognizer = sr.Recognizer()
+        SR_AVAILABLE = True
+    except ImportError:
+        SR_AVAILABLE = False
+        VOICE_AVAILABLE = False
+else:
+    SR_AVAILABLE = False
 
 
 # API base URL
@@ -235,6 +267,45 @@ def main():
                     st.session_state.conversation_done = False
                     st.rerun()
             else:
+                # Check if we have a transcribed voice input to use
+                if st.session_state.get('voice_transcript'):
+                    voice_input = st.session_state.voice_transcript
+                    st.session_state.voice_transcript = None  # Clear after use
+                    
+                    # Automatically send the voice input
+                    try:
+                        response = requests.post(f"{API_BASE}/simulate", json={
+                            "session_id": st.session_state.session_id,
+                            "lead": lead,
+                            "utterance": voice_input
+                        })
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            
+                            # Add user message to history
+                            st.session_state.conversation_history.append({
+                                "role": "user",
+                                "message": voice_input,
+                                "timestamp": "now"
+                            })
+                            
+                            # Add agent response to history
+                            st.session_state.conversation_history.append({
+                                "role": "agent",
+                                "message": data['reply'],
+                                "timestamp": "now"
+                            })
+                            
+                            # Check if conversation is done
+                            if data['final']:
+                                st.session_state.conversation_done = True
+                            
+                            st.rerun()
+                            
+                    except Exception as e:
+                        st.error(f"Error processing voice input: {e}")
+                
                 # User input
                 user_input = st.text_input(
                     "Your response:",

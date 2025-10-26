@@ -87,16 +87,15 @@ class VonageService:
             ncco = [
                 {
                     "action": "talk",
-                    "text": f"<speak><prosody rate=\"fast\">Hey {lead.name}, I am calling about <emphasis level=\"moderate\">TopSales</emphasis>, our AI-based lead generator that turns cold leads into warm ones using realistic automated calls and scheduling follow-ups.<break time=\"120ms\"/>Would you like to learn more?</prosody></speak>",
-                    "voiceName": "Joanna",
-                    "ssml": True
+                    "text": f"Hey {lead.name}, I am calling about TopSales, our AI-based lead generator that turns cold leads into warm ones using realistic automated calls and scheduling follow-ups. Would you like to learn more?",
+                    "voiceName": "Joanna"
                 },
                 {
                     "action": "input",
                     "type": ["speech"],
                     "speech": {
-                        "endOnSilence": 1.5,
-                        "timeout": 1
+                        "endOnSilence": 2.0,
+                        "timeout": 5
                     },
                     "eventUrl": [f"{webhook_url}/vonage/voice/input"],
                     "eventMethod": "POST"
@@ -142,12 +141,17 @@ class VonageService:
         Returns:
             NCCO list
         """
+        # Remove SSML tags and use plain text for better compatibility
+        clean_message = message.replace('<speak>', '').replace('</speak>', '')
+        clean_message = clean_message.replace('<prosody rate="fast">', '').replace('</prosody>', '')
+        clean_message = clean_message.replace('<emphasis level="moderate">', '').replace('</emphasis>', '')
+        clean_message = clean_message.replace('<break time="120ms"/>', ' ')
+        
         ncco = [
             {
                 "action": "talk",
-                "text": f"<speak><prosody rate=\"fast\">{message}</prosody></speak>",
-                "voiceName": "Joanna",
-                "ssml": True
+                "text": clean_message,
+                "voiceName": "Joanna"
             }
         ]
         
@@ -156,8 +160,8 @@ class VonageService:
                 "action": "input",
                 "type": ["speech"],
                 "speech": {
-                    "endOnSilence": 1.5,
-                    "timeout": 2
+                    "endOnSilence": 2.0,
+                    "timeout": 5
                 },
                 "eventUrl": [f"{webhook_url}/vonage/voice/input"],
                 "eventMethod": "POST"
